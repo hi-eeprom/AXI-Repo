@@ -82,6 +82,8 @@ module s_axi_interrupt #(
     end
   end
   
+  assign intr_reg_wen = axi_wready & s_axi_wvalid & axi_awready & s_axi_awvalid;
+  
   always_ff @(posedge s_axi_aclk) begin
     if (s_axi_areset) begin
       axi_bvalid <= 1'b0;
@@ -115,6 +117,68 @@ module s_axi_interrupt #(
       axi_rresp <= 2'b00; // OKAY responce
     end else if (axi_rvalid && s_axi_rready) begin
       axi_rvalid <= 1'b0;
+    end
+  end
+  
+  assign intr_reg_ren = axi_arready & s_axi_arvalid & ~axi_rvalid;
+  
+  // Innterrupt register write
+  // Global interrupt register
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset) begin
+      intr_global_en <= 1'b0;
+    end else if (intr_reg_wen && axi_awaddr[4:2] == 3'h0) begin
+      intr_global_en <= s_axi_wdata[0];
+    end
+  end
+  // interrupt enable register
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset) begin
+      intr_en <= {NUM_OF_INTR{1'b0}};
+    end else if (intr_reg_wen && axi_awaddr[4:2] == 3'h1) begin
+      intr_en <= s_axi_wdata[NUM_OF_INTR-1:0];
+    end
+  end
+  genvar i;
+  generate for (i=0; i<NUM_OF_INTR; i++) begin : gen_intr_reg
+    // interrupt status register
+    always_ff @(posedge s_axi_aclk) begin
+      if (s_axi_areset || intr_ack[i]) begin
+        intr_sts[i] <= 1'b0;
+      end else begin
+        intr_sts[i] <= ext_interrupt[i];
+      end
+    end
+    // interrupt acknowledgement register
+    always_ff @(posedge s_axi_aclk) begin
+      if (s_axi_areset || intr_ack[i]) begin
+        intr_ack[i] <= 1'b0;
+      end else if (intr_reg_wen && axi_awaddr[4:2] == 3'h3) begin
+        intr_ack[i] <= s_axi_wdata[i];
+      end
+    end
+    // interrupt pending register
+    always_ff @(posedge s_axi_aclk) begin
+      if (s_axi_areset || intr_ack[i]) begin
+        intr_pending[i] <= 1'b0;
+      end else begin
+        intr_pending[i] <= intr_sts[i] & intr_en[i];
+      end
+    end
+  end endgenerate
+  // Innterrupt register read
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset) begin
+      axi_rdata <= {DATA_WIDTH{1'b0}};
+    end else if (intr_reg_ren) begin
+      case (axi_araddr[4:2])
+        3'h0    : axi_rdata <= intr_global_en;
+        3'h1    : axi_rdata <= intr_en;
+        3'h2    : axi_rdata <= intr_sts;
+        3'h3    : axi_rdata <= intr_ack;
+        3'h4    : axi_rdata <= intr_pending;
+        default : axi_rdata <= {DATA_WIDTH{1'b0}};
+      endcase
     end
   end
   
