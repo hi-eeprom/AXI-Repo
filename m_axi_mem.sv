@@ -209,4 +209,80 @@ module m_axi_mem #(
   
   assign rd_resp_error = axi_rready & m_axi_rvalid & m_axi_rresp[1];
   
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || start_wr_burst) begin
+      wr_burst_counter <= 0;
+    end else if (m_axi_awready && axi_awvalid && wr_burst_counter[NO_BURSTS_REQ]) begin
+      wr_burst_counter <= wr_burst_counter;
+    end else if (m_axi_awready && axi_awvalid) begin
+      wr_burst_counter <= wr_burst_counter + 1;
+    end
+  end
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || start_rd_burst) begin
+      rd_burst_counter <= 0;
+    end else if (m_axi_arready && axi_arvalid && rd_burst_counter[NO_BURSTS_REQ]) begin
+      rd_burst_counter <= rd_burst_counter;
+    end else if (m_axi_arready && axi_arvalid) begin
+      rd_burst_counter <= rd_burst_counter + 1;
+    end
+  end
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset) begin
+      wr_state <= IDLE;
+      start_wr_burst <= 1'b0;
+    end else begin
+      case (wr_state)
+        IDLE : begin
+          if (txn_start) begin
+            wr_state <= ACTIVE;
+            start_wr_burst <= 1'b1;
+          end
+        end
+        ACTIVE : begin
+          if (m_axi_bvalid && axi_bready && wr_burst_counter[NO_BURSTS_REQ]) begin
+            wr_state <= IDLE;
+          end else if (m_axi_bvalid && axi_bready) begin
+            wr_state <= DONE;
+          end
+          start_wr_burst <= 1'b0;
+        end
+        DONE : begin
+          wr_state <= ACTIVE;
+          start_wr_burst <= 1'b1;
+        end
+      endcase
+    end
+  end
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset) begin
+      rd_state <= IDLE;
+      start_rd_burst <= 1'b0;
+    end else begin
+      case (rd_state)
+        IDLE : begin
+          if (txn_start) begin
+            rd_state <= ACTIVE;
+            start_rd_burst <= 1'b1;
+          end
+        end
+        ACTIVE : begin
+          if (m_axi_rvalid && m_axi_rlast && axi_rready && rd_burst_counter[NO_BURSTS_REQ]) begin
+            rd_state <= IDLE;
+          end else if (m_axi_rvalid && m_axi_rlast && axi_rready) begin
+            rd_state <= DONE;
+          end
+          start_rd_burst <= 1'b0;
+        end
+        DONE : begin
+          rd_state <= ACTIVE;
+          start_rd_burst <= 1'b1;
+        end
+      endcase
+    end
+  end
+  
 endmodule
