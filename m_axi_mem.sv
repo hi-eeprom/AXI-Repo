@@ -59,6 +59,9 @@ module m_axi_mem #(
   output logic m_axi_rready
 );
   
+  logic m_axi_areset;
+  assign m_axi_areset = ~m_axi_aresetn;
+  
   typedef enum {IDLE,ACTIVE,DONE} state_type;
   state_type state;
   
@@ -85,6 +88,8 @@ module m_axi_mem #(
   logic start_rd_burst;
   logic wr_done;
   logic rd_done;
+  logic wr_resp_error;
+  logic rd_resp_error;
   
   assign m_axi_awid = 'b0;
   assign m_axi_awaddr = axi_awaddr;
@@ -115,5 +120,93 @@ module m_axi_mem #(
   assign m_axi_aruser = 'b1;
   assign m_axi_arvalid = axi_arvalid;
   assign m_axi_rready = axi_rready;
+  
+  assign txn_done = wr_done | rd_done;
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || wr_state == IDLE) begin
+      axi_awvalid <= 1'b0;
+      axi_awaddr <= SLAVE_BASE_ADDR;
+    end else if (~axi_awvalid && start_wr_burst) begin
+      axi_awvalid <= 1'b1;
+    end else if (axi_awvalid && m_axi_awready) begin
+      axi_awvalid <= 1'b0;
+      axi_awaddr <= axi_awaddr + (BURST_LEN*DATA_WIDTH/8);
+    end
+  end
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || wr_state == IDLE) begin
+      axi_wvalid <= 1'b0;
+    end else if (~axi_wvalid && start_wr_burst) begin
+      axi_wvalid <= 1'b1;
+    end else if (axi_wvalid && axi_wlast && m_axi_wready) begin
+      axi_wvalid <= 1'b0;
+    end
+  end
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || wr_state == IDLE) begin
+      axi_wlast <= 1'b0;
+    end else if ((axi_wvalid && m_axi_wready && wr_index == BURST_LEN-2 && BURST_LEN >= 2) || BURST_LEN == 1) begin
+      axi_wlast <= 1'b1;
+    end else if (axi_wvalid && axi_wlast && m_axi_wready) begin
+      axi_wlast <= 1'b0;
+    end
+  end
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || start_wr_burst) begin
+      wr_index <= 0;
+    end else if (axi_wvalid && m_axi_wready) begin
+      wr_index <= wr_index + 1;
+    end
+  end
+  
+  assign axi_wdata = wr_index;
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || wr_state == IDLE) begin
+      axi_bready <= 1'b0;
+    end else if (~axi_bready && m_axi_bvalid) begin
+      axi_bready <= 1'b1;
+    end else if (axi_bready) begin
+      axi_bready <= 1'b0;
+    end
+  end
+  
+  assign wr_resp_error = axi_bready & m_axi_bvalid & m_axi_bresp[1];
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || rd_state == IDLE) begin
+      axi_arvalid <= 1'b0;
+      axi_araddr <= SLAVE_BASE_ADDR;
+    end else if (~axi_arvalid && start_rd_burst) begin
+      axi_arvalid <= 1'b1;
+    end else if (axi_arvalid && m_axi_arready) begin
+      axi_arvalid <= 1'b0;
+      axi_araddr <= axi_araddr + (BURST_LEN*DATA_WIDTH/8);
+    end
+  end
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || rd_state == IDLE) begin
+      axi_rready <= 1'b0;
+    end else if (~axi_rready && start_rd_burst) begin
+      axi_rready <= 1'b1;
+    end else if (m_axi_rvalid && m_axi_rlast && axi_rready) begin
+      axi_rready <= 1'b0;
+    end
+  end
+  
+  always_ff @(posedge m_axi_aclk) begin
+    if (m_axi_areset || start_rd_burst) begin
+      rd_index <= 0;
+    end else if (m_axi_rvalid && axi_rready) begin
+      rd_index <= rd_index + 1;
+    end
+  end
+  
+  assign rd_resp_error = axi_rready & m_axi_rvalid & m_axi_rresp[1];
   
 endmodule
