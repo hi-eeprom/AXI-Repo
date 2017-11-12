@@ -64,9 +64,30 @@ module s_axi_mem #(
   logic s_axi_areset;
   assign s_axi_areset = ~s_axi_aresetn;
   
-  logic [ADDR_WIDTH-1:0] axi_awaddr;
-  logic                  axi_awaddr_invalid;
-  logic                  axi_awready;
-  logic                  axi_w
-
+  logic [ADDR_WIDTH-1:0]  axi_awaddr;
+  logic                   axi_awaddr_invalid;
+  logic                   axi_awready;
+  logic                   axi_wready;
+  logic [1:0]             axi_bresp;
+  logic [BUSER_WIDTH-1:0] axi_buser = 0;
+  logic                   axi_bvalid;
+  logic [ADDR_WIDTH-1:0]  axi_araddr;
+  logic                   axi_araddr_invalid;
+  logic                   axi_arready;
+  logic [DATA_WIDTH-1:0]  axi_rdata;
+  logic [1:0]             axi_rresp;
+  logic                   axi_rlast;
+  logic [RUSER_WIDTH-1:0] axi_ruser = 0;
+  logic                   axi_rvalid;
+  logic                   aw_wrap_en;
+  logic                   ar_wrap_en;
+  logic [31:0]            aw_wrap_size;
+  logic [31:0]            ar_wrap_size;
+  logic [7:0]             axi_awlen_cntr;
+  logic [7:0]             axi_arlen_cntr;
+  logic [1:0]             axi_awburst;
+  logic [1:0]             axi_arburst;
+  logic [7:0]             axi_awlen;
+  logic [7:0]             axi_arlen;
+  
 endmodule
