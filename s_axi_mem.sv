@@ -90,4 +90,34 @@ module s_axi_mem #(
   logic [7:0]             axi_awlen;
   logic [7:0]             axi_arlen;
   
+  localparam ADDR_LSB = $clog2(DATA_WIDTH/8);
+  
+  assign s_axi_awready = axi_awready;
+  assign s_axi_wready  = axi_wready;
+  assign s_axi_bresp   = axi_bresp;
+  assign s_axi_buser   = axi_buser;
+  assign s_axi_bvalid  = axi_bvalid;
+  assign s_axi_arready = axi_arready;
+  assign s_axi_rdata   = axi_rdata;
+  assign s_axi_rresp   = axi_rresp;
+  assign s_axi_ruser   = axi_ruser;
+  
+  assign s_axi_bid     = s_axi_awid;
+  assign s_axi_rid     = s_axi_arid;
+  
+  assign aw_wrap_size = axi_awlen << $clog2(DATA_WIDTH/8);
+  assign ar_wrap_size = axi_arlen << $clog2(DATA_WIDTH/8);
+  assign aw_wrap_en   = (axi_awaddr & aw_wrap_size) == aw_wrap_size ? 1'b1 : 1'b0;
+  assign ar_wrap_en   = (axi_araddr & ar_wrap_size) == ar_wrap_size ? 1'b1 : 1'b0;
+  
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset) begin
+      s_axi_rvalid <= 1'b0;
+      s_axi_rlast <= 1'b0;
+    end else begin
+      s_axi_rvalid <= axi_rvalid;
+      s_axi_rlast <= axi_rlast;
+    end
+  end
+  
 endmodule
