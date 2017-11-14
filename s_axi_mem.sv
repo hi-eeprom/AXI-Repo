@@ -120,4 +120,99 @@ module s_axi_mem #(
     end
   end
   
+  typedef enum {IDLE,WR_ACTIVE,WR_RESP,RD_ACTIVE,RD_DONE} state_type;
+  // accept either rd/wr at a atime, supports only Single-Port-RAM
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset) begin
+      state <= IDLE;
+    end else begin
+      case (state)
+        IDLE : begin
+          if (~axi_awready && s_axi_awvalid) begin
+            state <= WR_ACTIVE;
+          end else if (~axi_arready && s_axi_arvalid) begin
+            state <= RD_ACTIVE;
+          end
+        end
+        WR_ACTIVE : begin
+          if (s_axi_wlast && s_axi_wvalid && axi_wready) begin
+            state <= WR_RESP;
+          end
+        end
+        WR_RESP : begin
+          if (s_axi_bready && axi_bvalid) begin
+            state <= IDLE;
+          end
+        end
+        RD_ACTIVE : begin
+          if (axi_rvalid && s_axi_rready && axi_arlen_cntr == axi_arlen) begin
+            state <= RD_DONE;
+          end
+        end
+        RD_DONE : begin
+          state <= IDLE;
+        end
+        default : state <= IDLE;
+      endcase
+    end
+  end
+  
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset) begin
+      axi_awready <= 1'b0;
+      axi_arready <= 1'b0;
+    end else if (~axi_awready && s_axi_awvalid && state == IDLE) begin
+      axi_awready <= 1'b1;
+    end else if (~axi_awready && s_axi_awvalid && state == IDLE) begin
+      axi_arready <= 1'b1;
+    end else begin
+      axi_awready <= 1'b0;
+      axi_arready <= 1'b0;
+    end
+  end
+  
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset || (axi_awready && s_axi_awvalid)) begin
+      axi_wready <= 1'b0;
+    end else if (~axi_wready && s_axi_wvalid && state == WR_ACTIVE) begin
+      axi_wready <= 1'b1;
+    end else if (s_axi_wlast && s_axi_wvalid && axi_wready) begin
+      axi_wready <= 1'b0;
+    end
+  end
+  
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset || (axi_awready && s_axi_awvalid)) begin
+      axi_bvalid <= 1'b0;
+      axi_bresp <= 2'b00;
+    end else if (s_axi_wlast && s_axi_wvalid && axi_wready) begin
+      axi_bvalid <= 1'b1;
+      axi_bresp <= {axi_awaddr_invalid,1'b0}; // 2'b00 - OKAY Resp
+    end else if (s_axi_bready && axi_bvalid) begin
+      axi_bvalid <= 1'b0;
+    end
+  end
+  
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset || (axi_arready && s_axi_arvalid)) begin
+      axi_rvalid <= 1'b0;
+      axi_rresp <= 2'b00;
+    end else if (~axi_rvalid && state == RD_ACTIVE) begin
+      axi_rvalid <= 1'b1;
+      axi_rresp <= {axi_araddr_invalid,1'b0}; // 2'b00 - OKAY Resp
+    end else if (axi_rlast && axi_rvalid && s_axi_rready) begin
+      axi_rvalid <= 1'b0;
+    end
+  end
+  
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset || (axi_arready && s_axi_arvalid)) begin
+      axi_rlast <= 1'b0;
+    end else if (~axi_rlast && (axi_arlen_cntr == axi_arlen-1) && state == RD_ACTIVE) begin
+      axi_rlast <= 1'b1;
+    end else if (axi_rlast && axi_rvalid && s_axi_rready) begin
+      axi_rlast <= 1'b0;
+    end
+  end
+  
 endmodule
