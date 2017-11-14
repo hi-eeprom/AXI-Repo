@@ -163,7 +163,7 @@ module s_axi_mem #(
       axi_arready <= 1'b0;
     end else if (~axi_awready && s_axi_awvalid && state == IDLE) begin
       axi_awready <= 1'b1;
-    end else if (~axi_awready && s_axi_awvalid && state == IDLE) begin
+    end else if (~axi_arready && s_axi_arvalid && state == IDLE) begin
       axi_arready <= 1'b1;
     end else begin
       axi_awready <= 1'b0;
