@@ -215,4 +215,99 @@ module s_axi_mem #(
     end
   end
   
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset || state == IDLE) begin
+      axi_awaddr_invalid <= 1'b0;
+    end else if (axi_awready && s_axi_awvalid) begin
+      axi_awaddr_invalid <= (s_axi_awaddr & SLAVE_ADDR_MASK) != (SLAVE_BASE_ADDR & SLAVE_ADDR_MASK);
+    end
+  end
+  
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset) begin
+      axi_awaddr <= 0;
+      axi_awlen_cntr <= 0;
+      axi_awburst <= 0;
+      axi_awlen <= 0;
+    end else if (axi_awready && s_axi_awvalid) begin
+      axi_awaddr <= s_axi_awaddr[ADDR_WIDTH-1:0];
+      axi_awlen_cntr <= 0;
+      axi_awburst <= s_axi_awburst;
+      axi_awlen <= s_axi_awlen;
+    end else if ((axi_awlen_cntr <= axi_awlen) && axi_wready && s_axi_wvalid) begin
+      axi_awlen_cntr <= axi_awlen_cntr + 1;
+      case(axi_awburst)
+        2'b00 : begin
+          axi_awaddr <= axi_awaddr;
+        end
+        2'b01 : begin
+          axi_awaddr[ADDR_WIDTH-1:ADDR_LSB] <= axi_awaddr[ADDR_WIDTH-1:ADDR_LSB] + 1;
+          axi_awaddr[ADDR_LSB-1:0] <= {ADDR_LSB{1'b0}};
+        end
+        2'b10 : begin
+          if (aw_wrap_en) begin
+            axi_awaddr <= (axi_awaddr - aw_wrap_size);
+          end else begin
+            axi_awaddr[ADDR_WIDTH-1:ADDR_LSB] <= axi_awaddr[ADDR_WIDTH-1:ADDR_LSB] + 1;
+            axi_awaddr[ADDR_LSB-1:0] <= {ADDR_LSB{1'b0}};
+          end
+        end
+        default : begin
+          axi_awaddr[ADDR_WIDTH-1:ADDR_LSB] <= axi_awaddr[ADDR_WIDTH-1:ADDR_LSB] + 1;
+        end
+      endcase
+    end
+  end
+  
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset || state == IDLE) begin
+      axi_araddr_invalid <= 1'b0;
+    end else if (axi_arready && s_axi_arvalid) begin
+      axi_araddr_invalid <= (s_axi_araddr & SLAVE_ADDR_MASK) != (SLAVE_BASE_ADDR & SLAVE_ADDR_MASK);
+    end
+  end
+  
+  always_ff @(posedge s_axi_aclk) begin
+    if (s_axi_areset) begin
+      axi_araddr <= 0;
+      axi_arlen_cntr <= 0;
+      axi_arburst <= 0;
+      axi_arlen <= 0;
+    end else if (axi_arready && s_axi_arvalid) begin
+      axi_araddr <= s_axi_araddr[ADDR_WIDTH-1:0];
+      axi_arlen_cntr <= 0;
+      axi_arburst <= s_axi_arburst;
+      axi_arlen <= s_axi_arlen;
+    end else if ((axi_arlen_cntr <= axi_arlen) && axi_rvalid && s_axi_rready) begin
+      axi_arlen_cntr <= axi_arlen_cntr + 1;
+      case(axi_arburst)
+        2'b00 : begin
+          axi_araddr <= axi_araddr;
+        end
+        2'b01 : begin
+          axi_araddr[ADDR_WIDTH-1:ADDR_LSB] <= axi_araddr[ADDR_WIDTH-1:ADDR_LSB] + 1;
+          axi_araddr[ADDR_LSB-1:0] <= {ADDR_LSB{1'b0}};
+        end
+        2'b10 : begin
+          if (ar_wrap_en) begin
+            axi_araddr <= (axi_araddr - ar_wrap_size);
+          end else begin
+            axi_araddr[ADDR_WIDTH-1:ADDR_LSB] <= axi_araddr[ADDR_WIDTH-1:ADDR_LSB] + 1;
+            axi_araddr[ADDR_LSB-1:0] <= {ADDR_LSB{1'b0}};
+          end
+        end
+        default : begin
+          axi_araddr[ADDR_WIDTH-1:ADDR_LSB] <= axi_araddr[ADDR_WIDTH-1:ADDR_LSB] + 1;
+        end
+      endcase
+    end
+  end
+  
+  assign mem_read = state == RD_ACTIVE && ~axi_araddr_invalid;
+  assign mem_write = axi_wready && s_axi_wvalid && ~axi_awaddr_invalid;
+  assign mem_address = state == WR_ACTIVE ? axi_awaddr : axi_araddr;
+  assign mem_write_strb = s_axi_wstrb;
+  assign mem_write_data = s_axi_wdata;
+  assign axi_rdata = mem_read_data;
+  
 endmodule
